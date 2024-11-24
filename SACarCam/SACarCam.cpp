@@ -9,7 +9,7 @@
 #include "debugmenu_public.h"
 
 // Uncomment to make it LCS vehicle camera - defined or not, it will always be compatible with III / VC / Re:LCS
-// #define LCS_CAM
+#define LCS_CAM
 
 #define DefaultFOV 70.0f
 
@@ -265,6 +265,9 @@ void registerDebugMenu() {
 	}
 	DebugInitTextBuffer();
 }
+
+bool lookingRelativelyLeft = false;
+bool lookingRelativelyRight = false;
 
 template<class CamClass, class CameraClass, class VehicleClass, class WorldClass, class ColModelClass>
 void
@@ -1032,7 +1035,8 @@ Process_FollowCar_SA(const CVector& CameraTarget, float TargetOrientation, CamCl
 	cam->GetVectorsReadyForRW();
 	// SA
 	// gTargetCoordsForLookingBehind = TargetCoors;
-
+	lookingRelativelyLeft = false;
+	lookingRelativelyRight = false;
 	// SA code from CAutomobile::TankControl/FireTruckControl.
 	if (car->m_modelIndex == Tank || car->m_modelIndex == FireTruk) {
 		CVector hi = Multiply3x3(cam->Front, car->GetMatrix());
@@ -1109,8 +1113,89 @@ Process_FollowCar_SA(const CVector& CameraTarget, float TargetOrientation, CamCl
 			}
 		}
 	}
+	else
+	{
+		CVector hi = Multiply3x3(cam->Front, car->GetMatrix());
+
+		if (hi.Heading() >= 0.5235987756 && hi.Heading() <= 2.617993878) // > 30 deg and < 150 deg
+			lookingRelativelyLeft = true;
+		else if (hi.Heading() <= -0.5235987756 && hi.Heading() >= -2.617993878) // < -30 and > -150 deg
+			lookingRelativelyRight = true;
+	}
 
 	previousMode = cam->Mode;
+}
+
+namespace BetterDriveBy {
+
+	//__declspec(naked) static void JumpToCheckingBoolsIII()
+	//{
+	//	EAXJMP(0x5640AB)
+	//}
+
+	__declspec(naked) static void LookingLeftOrRightIII()
+	{
+		if (TheCameraIII->Cams[TheCameraIII->ActiveCam].LookingLeft || lookingRelativelyLeft)
+		{
+			EAXJMP(0x564099)
+		}
+		else if (TheCameraIII->Cams[TheCameraIII->ActiveCam].LookingRight || lookingRelativelyRight)
+		{
+			EAXJMP(0x5640A6)
+		}
+		else
+		{
+			EAXJMP(0x5641D1)
+		}
+	}
+
+	__declspec(naked) static void LookingLeftOrRightVC()
+	{
+		if (TheCameraVC->Cams[TheCameraIII->ActiveCam].LookingLeft || lookingRelativelyLeft)
+		{
+			EAXJMP(0x5C9880)
+		}
+		else if (TheCameraVC->Cams[TheCameraVC->ActiveCam].LookingRight || lookingRelativelyRight)
+		{
+			EAXJMP(0x5C988E)
+		}
+		else
+		{
+			EAXJMP(0x5C9893)
+		}
+	}
+
+	__declspec(naked) static void LookingLeftOrRightBikesVC()
+	{
+		if (TheCameraVC->Cams[TheCameraIII->ActiveCam].LookingLeft || lookingRelativelyLeft)
+		{
+			EAXJMP(0x5C92B9)
+		}
+		else if (TheCameraVC->Cams[TheCameraVC->ActiveCam].LookingRight || lookingRelativelyRight)
+		{
+			EAXJMP(0x5C92C7)
+		}
+		else
+		{
+			EAXJMP(0x5C92CB)
+		}
+	}
+
+	__declspec(naked) static void LookingLeftOrRightBoatsVC()
+	{
+		if (TheCameraVC->Cams[TheCameraIII->ActiveCam].LookingLeft || lookingRelativelyLeft)
+		{
+			EAXJMP(0x5C9610)
+		}
+		else if (TheCameraVC->Cams[TheCameraVC->ActiveCam].LookingRight || lookingRelativelyRight)
+		{
+			EAXJMP(0x5C961E)
+		}
+		else
+		{
+			EAXJMP(0x5C9623)
+		}
+	}
 }
 
 void
@@ -1232,6 +1317,8 @@ DllMain(HINSTANCE hInst, DWORD reason, LPVOID)
 			InjectHook(0x52260E, &CPad::FakeCarGunUpDown, PATCH_NOTHING);
 			InjectHook(0x53D628, &CPad::FakeCarGunLeftRight, PATCH_NOTHING);
 			InjectHook(0x5225D2, &CPad::FakeCarGunLeftRight, PATCH_NOTHING);
+			InjectHook(0x56409D, 0x5640AB, PATCH_JUMP);
+			InjectHook(0x564090, BetterDriveBy::LookingLeftOrRightIII, PATCH_JUMP);
 		// VC
 		} else if (*(DWORD*)0x667BF5 == 0xB85548EC) {
 
@@ -1242,6 +1329,13 @@ DllMain(HINSTANCE hInst, DWORD reason, LPVOID)
 			InjectHook(0x483B3B, &CCamVC::Process_FollowCar_SA_VC, PATCH_NOTHING);
 			InjectHook(0x483B79, &CCamVC::Process_FollowCar_SA_VC, PATCH_NOTHING);
 			InjectHook(0x483C3C, &CCamVC::Process_FollowCar_SA_VC, PATCH_NOTHING);
+			
+			InjectHook(0x5C9885, 0x5C9893, PATCH_JUMP);
+			InjectHook(0x5C9877, BetterDriveBy::LookingLeftOrRightVC, PATCH_JUMP);
+			InjectHook(0x5C92BE, 0x5C92CB, PATCH_JUMP);
+			InjectHook(0x5C92B0, BetterDriveBy::LookingLeftOrRightBikesVC, PATCH_JUMP);
+			InjectHook(0x5C9615, 0x5C9623, PATCH_JUMP);
+			InjectHook(0x5C9607, BetterDriveBy::LookingLeftOrRightBoatsVC, PATCH_JUMP);
 
 			// To block original rhino-firetruck turret movement
 			InjectHook(0x57ABAE, &CPad::FakeCarGunUpDown, PATCH_NOTHING);
