@@ -1113,7 +1113,7 @@ Process_FollowCar_SA(const CVector& CameraTarget, float TargetOrientation, CamCl
 			}
 		}
 	}
-	else
+	else if ((cam->Mode == MODE_BEHINDBOAT || cam->Mode == MODE_CAMONASTRING) && !isHeli)
 	{
 		CVector hi = Multiply3x3(cam->Front, car->GetMatrix());
 
@@ -1127,11 +1127,6 @@ Process_FollowCar_SA(const CVector& CameraTarget, float TargetOrientation, CamCl
 }
 
 namespace BetterDriveBy {
-
-	//__declspec(naked) static void JumpToCheckingBoolsIII()
-	//{
-	//	EAXJMP(0x5640AB)
-	//}
 
 	__declspec(naked) static void LookingLeftOrRightIII()
 	{
